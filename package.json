@@ -1,6 +1,6 @@
 {
   "name": "selfy-knowledge-editor-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "prebuild": "node scripts/copy-skill.mjs",
@@ -17,6 +17,7 @@
     "mammoth": "^1.8.0",
     "next": "^14.2.18",
     "openai": "^6.39.0",
+    "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",

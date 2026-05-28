@@ -8,10 +8,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { llmGenerate } from "@/lib/llm";
 import { loadSkill, loadTemplate } from "@/lib/skill";
-import { outlineSearch, buildPublicUrl } from "@/lib/outline";
+import { outlineSearch, outlineListCollections, buildPublicUrl } from "@/lib/outline";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 // Класифікація типу через швидкий LLM-виклик
 async function classify(rawText: string): Promise<string> {
@@ -44,10 +44,26 @@ ${rawText.slice(0, 1500)}
   return "sop";
 }
 
-// Витягуємо title з markdown (перший H1)
 function extractTitle(md: string): string {
   const m = md.match(/^#\s+(.+?)$/m);
   return m ? m[1].trim() : "Без назви";
+}
+
+function fmtDate(iso?: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+// Нормалізуємо ranking Outline (може бути 0..1 або більше) до 0..1
+function normScore(raw: number | undefined): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0.3;
+  if (raw > 1) return Math.min(raw / 10, 1); // якщо понад 1, ділимо
+  return Math.max(0, Math.min(raw, 1));
 }
 
 export async function POST(req: NextRequest) {
@@ -91,23 +107,33 @@ ${template}
       maxTokens: 8000,
     });
 
-    // 4. Перевірити дублі через Outline
+    // 4. Перевірити дублі через Outline (паралельно загрузити колекції)
     let duplicates: any[] = [];
     let recommendation = "";
     try {
       const title = extractTitle(markdown);
-      const candidates = await outlineSearch(title, 5);
+      const [candidates, allCollections] = await Promise.all([
+        outlineSearch(title, 5),
+        outlineListCollections().catch(() => []),
+      ]);
+      const collById = new Map(allCollections.map((c: any) => [c.id, c.name]));
+
       duplicates = candidates
         .filter((c: any) => c?.document?.id)
         .map((c: any) => ({
           id: c.document.id,
           title: c.document.title,
+          collection: collById.get(c.document.collectionId) || "",
+          updated: fmtDate(c.document.updatedAt),
           url: buildPublicUrl(c.document.url),
-          matchScore: typeof c.ranking === "number" ? Math.min(c.ranking, 1) : 0.5,
+          matchScore: normScore(c.ranking),
         }))
-        .slice(0, 3);
+        .slice(0, 5);
 
-      if (duplicates.length > 0 && duplicates[0].matchScore > 0.6) {
+      // Сортуємо по схожості
+      duplicates.sort((a, b) => b.matchScore - a.matchScore);
+
+      if (duplicates.length > 0 && duplicates[0].matchScore >= 0.6) {
         recommendation = `Висока ймовірність дубліката з "${duplicates[0].title}" — рекомендую оновити існуючу статтю замість створення нової.`;
       } else if (duplicates.length > 0) {
         recommendation = "Знайдено тематично схожі статті — перегляньте перед публікацією.";

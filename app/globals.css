@@ -7,59 +7,99 @@
     -webkit-font-smoothing: antialiased;
   }
   body {
-    @apply bg-surface text-slate-900;
+    @apply bg-ink-50 text-ink-900;
+    background-image: radial-gradient(1200px 700px at 80% -100px, rgba(232, 100, 60, 0.04), transparent);
   }
 }
 
-/* Markdown preview styles */
-.prose-selfy {
-  @apply text-slate-800 leading-relaxed;
+/* Markdown preview - Outline-like */
+.prose-outline {
+  @apply text-ink-800 leading-relaxed text-[15px];
 }
-.prose-selfy h1 {
-  @apply text-3xl font-bold mb-4 mt-6 text-primary-900 border-b border-border pb-2;
+.prose-outline h1 {
+  @apply text-[28px] font-bold mb-3 mt-2 text-ink-900;
 }
-.prose-selfy h2 {
-  @apply text-2xl font-semibold mb-3 mt-6 text-primary-700;
+.prose-outline h2 {
+  @apply text-[20px] font-semibold mb-2 mt-6 text-ink-900;
 }
-.prose-selfy h3 {
-  @apply text-xl font-semibold mb-2 mt-4 text-primary-600;
+.prose-outline h3 {
+  @apply text-[16px] font-semibold mb-2 mt-4 text-ink-800;
 }
-.prose-selfy p {
+.prose-outline p {
   @apply mb-3;
 }
-.prose-selfy ul {
-  @apply list-disc list-inside mb-3 space-y-1;
+.prose-outline ul {
+  @apply list-disc list-outside ml-6 mb-3 space-y-1;
 }
-.prose-selfy ol {
-  @apply list-decimal list-inside mb-3 space-y-1;
+.prose-outline ol {
+  @apply list-decimal list-outside ml-6 mb-3 space-y-1;
 }
-.prose-selfy a {
-  @apply text-primary-600 underline hover:text-primary-700;
+.prose-outline a {
+  @apply text-accent-600 underline hover:text-accent-700;
 }
-.prose-selfy code {
-  @apply bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono text-accent-700;
+.prose-outline code {
+  @apply bg-ink-100 px-1.5 py-0.5 rounded text-[13px] font-mono text-accent-700;
 }
-.prose-selfy pre {
-  @apply bg-slate-900 text-slate-100 p-4 rounded-md overflow-x-auto mb-4;
+.prose-outline pre {
+  @apply bg-ink-900 text-ink-100 p-4 rounded-md overflow-x-auto mb-4 text-[13px];
 }
-.prose-selfy pre code {
-  @apply bg-transparent text-slate-100 p-0;
+.prose-outline pre code {
+  @apply bg-transparent text-ink-100 p-0;
 }
-.prose-selfy blockquote {
-  @apply border-l-4 border-primary-500 pl-4 italic text-slate-600 my-3;
+.prose-outline blockquote {
+  @apply border-l-4 border-ink-300 pl-4 italic text-ink-600 my-3;
 }
-.prose-selfy table {
-  @apply border-collapse border border-border mb-4 w-full;
+.prose-outline table {
+  @apply border-collapse border border-ink-200 mb-4 w-full;
 }
-.prose-selfy th, .prose-selfy td {
-  @apply border border-border px-3 py-2 text-left;
+.prose-outline th, .prose-outline td {
+  @apply border border-ink-200 px-3 py-2 text-left text-sm;
 }
-.prose-selfy th {
-  @apply bg-primary-50 font-semibold;
+.prose-outline th {
+  @apply bg-ink-50 font-semibold;
 }
-.prose-selfy hr {
-  @apply border-t border-border my-6;
+.prose-outline hr {
+  @apply border-t border-ink-200 my-6;
 }
-.prose-selfy input[type="checkbox"] {
-  @apply mr-2 accent-primary-600;
+.prose-outline input[type="checkbox"] {
+  @apply mr-2 accent-accent-500;
+}
+
+/* Notice-блоки (як в Outline) */
+.prose-outline blockquote p:first-child:has-text(":::info"),
+.notice-info {
+  @apply bg-blue-50 border-l-4 border-blue-400 text-blue-900 p-3 rounded-r my-3;
+}
+.notice-warning {
+  @apply bg-amber-50 border-l-4 border-amber-400 text-amber-900 p-3 rounded-r my-3;
+}
+.notice-tip {
+  @apply bg-purple-50 border-l-4 border-purple-400 text-purple-900 p-3 rounded-r my-3;
+}
+.notice-success {
+  @apply bg-emerald-50 border-l-4 border-emerald-400 text-emerald-900 p-3 rounded-r my-3;
+}
+
+/* AI overlay (під час обробки) */
+.ai-orb {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, #E8643C, #F18056, #FFE3D6, #E8643C);
+  animation: spin 2s linear infinite;
+  position: relative;
+}
+.ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  background: white;
+  border-radius: 50%;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin-slow {
+  animation: spin 1.6s linear infinite;
 }

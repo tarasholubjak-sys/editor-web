@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 type DupCandidate = {
   id: string;
   title: string;
+  collection?: string;
   url: string;
-  matchScore: number;
+  updated?: string;
+  matchScore: number; // 0..1
 };
 
 type RefactorResult = {
@@ -18,31 +20,70 @@ type RefactorResult = {
   recommendation?: string;
 };
 
-const SAMPLE_INPUT = `АЛГОРИТМ РОБОТИ З ПОВЕРНЕННЯМИ
+type Collection = { id: string; name: string };
 
-Типи повернень: - брак; - розпаровки; - не сподобалось/не підійшло; - відправлено на огляд
+const AI_STEPS = [
+  "Аналізую структуру тексту…",
+  "Виділяю заголовки та кроки…",
+  "Форматую списки й виноски…",
+  "Перевіряю дублікати в Outline…",
+];
 
-Процес опрацювання браків:
-1. Звернення клієнта
-2. Детальний аналіз звернення клієнта
-3. Отримати відео та фото !!!!!!!
-4. Якщо після аналізу наданих фото та відео ви оцінюєте, що клієнту можна запропонувати знижку - тоді обговорюєте цей момент з клієнтом. МЕНЕДЖЕР САМОСТІЙНО ПРИЙМАЄ РІШЕННЯ ЩОДО ЗНИЖКИ від 10 до 30%.
-5. Якщо клієнт відмовляється - оформляємо повернення в 1С.
-
-* Розпаровки та браки по ВАЛДІ - ПОВЕРТАЄМО ЗАВЖДИ ДО НАС.
-* Інші бренди - надсилаєте в чат в Телеграмі Браки/Розпаровки взуття.
-
-Терміни повернення: до 3-х днів від дати звернення.
-Оплата за повернення: у випадку браків - Легке повернення. У випадку ініціативи клієнта - оплату бере на себе клієнт.
-Повернення коштів: тільки після фізичного огляду на складі (1-3 дні).`;
+const TEMPLATES = [
+  { id: "sop", name: "SOP / Регламент", desc: "Покроковий процес із відповідальними" },
+  { id: "script", name: "Скрипт продажу", desc: "Структура розмови з клієнтом" },
+  { id: "faq", name: "FAQ", desc: "Питання та відповіді" },
+  { id: "onboarding", name: "Онбординг", desc: "План для нового співробітника" },
+  { id: "policy", name: "Політика", desc: "Правила та умови" },
+  { id: "product", name: "Опис бренду", desc: "Інформація про продукт/бренд" },
+];
 
 export default function HomePage() {
+  const [sourceTab, setSourceTab] = useState<"text" | "file" | "gdoc">("text");
   const [input, setInput] = useState<string>("");
   const [result, setResult] = useState<RefactorResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [aiStep, setAiStep] = useState<string>(AI_STEPS[0]);
   const [error, setError] = useState<string | null>(null);
-  const [previewMode, setPreviewMode] = useState<"preview" | "raw">("preview");
+  const [title, setTitle] = useState<string>("");
+  const [selectedTemplate, setSelectedTemplate] = useState(TEMPLATES[0].id);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>("");
+  const [toast, setToast] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Завантажуємо колекції при відкритті сторінки
+  useEffect(() => {
+    fetch("/api/collections").then(async (r) => {
+      if (!r.ok) return;
+      const data = await r.json();
+      if (Array.isArray(data.collections)) {
+        setCollections(data.collections);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Стадії AI під час обробки
+  useEffect(() => {
+    if (!loading) return;
+    let i = 0;
+    setAiStep(AI_STEPS[0]);
+    const id = setInterval(() => {
+      i++;
+      if (AI_STEPS[i]) setAiStep(AI_STEPS[i]);
+    }, 1800);
+    return () => clearInterval(id);
+  }, [loading]);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
+
+  const extractTitle = (md: string): string => {
+    const m = md.match(/^#\s+(.+?)$/m);
+    return m ? m[1].trim() : "Без назви";
+  };
 
   const handleRefactor = async () => {
     if (!input.trim()) {
@@ -64,6 +105,8 @@ export default function HomePage() {
       }
       const data: RefactorResult = await res.json();
       setResult(data);
+      setTitle(extractTitle(data.markdown));
+      if (data.type) setSelectedTemplate(data.type);
     } catch (err: any) {
       setError(err.message || "Невідома помилка");
     } finally {
@@ -80,9 +123,10 @@ export default function HomePage() {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch("/api/upload", { method: "POST", body: formData });
-      if (!res.ok) throw new Error("Не вдалось прочитати файл");
-      const { text } = await res.json();
-      setInput(text);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Не вдалось прочитати файл");
+      setInput(data.text);
+      setSourceTab("text");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -93,20 +137,24 @@ export default function HomePage() {
 
   const handlePublish = async () => {
     if (!result?.markdown) return;
-    if (!confirm("Опублікувати як чернетку в Outline?")) return;
+    if (!confirm(`Опублікувати "${title}" як чернетку в Outline?`)) return;
     setLoading(true);
     try {
+      // Замінюємо H1 на наш title (якщо змінений)
+      const md = result.markdown.replace(/^#\s+.+$/m, `# ${title}`);
       const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ markdown: result.markdown, type: result.type }),
+        body: JSON.stringify({
+          markdown: md,
+          type: selectedTemplate,
+          collectionId: selectedCollectionId || undefined,
+        }),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Помилка публікації");
-      }
-      const { url } = await res.json();
-      alert(`✅ Чернетка створена!\n\nВідкрий в Outline:\n${url}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Помилка публікації");
+      showToast(`✅ Чернетку створено в Outline`);
+      window.open(data.url, "_blank");
     } catch (err: any) {
       alert(`❌ ${err.message}`);
     } finally {
@@ -114,192 +162,385 @@ export default function HomePage() {
     }
   };
 
+  const handleSaveDraft = () => {
+    if (!result?.markdown) return;
+    const blob = new Blob([result.markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${title || "draft"}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Завантажую markdown файл");
+  };
+
   const handleCopy = () => {
     if (result?.markdown) {
       navigator.clipboard.writeText(result.markdown);
-      alert("Markdown скопійовано в буфер!");
+      showToast("Markdown у буфері");
     }
   };
 
+  const flaggedDup = result?.duplicates?.find((d) => d.matchScore >= 0.6);
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b border-border shadow-sm">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-600 to-accent-500 rounded-lg flex items-center justify-center text-white font-bold text-lg">
+      {/* Topbar */}
+      <header className="bg-white border-b border-ink-200 sticky top-0 z-30">
+        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-6">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 bg-gradient-to-br from-accent-500 to-accent-700 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-card">
               S
             </div>
-            <div>
-              <h1 className="text-lg font-bold text-slate-900">Selfy Knowledge Editor</h1>
-              <p className="text-xs text-slate-500">AI-редактор бази знань</p>
+            <div className="leading-tight">
+              <div className="text-[15px] font-bold text-ink-900">
+                Selfy <span className="text-ink-500 font-medium">Knowledge Editor</span>
+              </div>
+              <div className="text-[11px] text-ink-500">AI-редактор бази знань</div>
             </div>
           </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-ink-500 ml-4">
+            <span>›</span>
+            <span>Чернетки</span>
+            <span>›</span>
+            <span className="font-semibold text-ink-800">Нова стаття</span>
+          </div>
+
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Синхронізовано з Outline
+          </div>
+
           <a
             href="https://wiki.selfy.com.ua"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+            className="text-sm text-accent-600 hover:text-accent-700 font-medium"
           >
-            ↗ Перейти в Outline
+            ↗ Outline
           </a>
         </div>
       </header>
 
       {/* Main */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-6">
-        {/* Toolbar */}
-        <div className="bg-white rounded-lg border border-border p-4 mb-4 flex flex-wrap gap-3 items-center">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".txt,.md,.docx,.pdf"
-            onChange={handleFileUpload}
-            className="hidden"
-            id="file-upload"
-          />
-          <label
-            htmlFor="file-upload"
-            className="cursor-pointer bg-white border border-border hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-          >
-            📎 Завантажити файл
-          </label>
-          <button
-            onClick={() => setInput(SAMPLE_INPUT)}
-            className="text-sm text-slate-500 hover:text-primary-600 underline"
-          >
-            Вставити приклад
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={handleRefactor}
-            disabled={loading || !input.trim()}
-            className="bg-primary-600 hover:bg-primary-700 disabled:bg-slate-300 text-white px-5 py-2 rounded-md text-sm font-semibold flex items-center gap-2"
-          >
-            {loading ? "⏳ Обробка..." : "✨ Переписати"}
-          </button>
-        </div>
-
-        {/* Error */}
+      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-5">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 rounded-md p-3 mb-4 text-sm">
-            ⚠️ {error}
+          <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mb-4 text-sm flex items-center gap-2">
+            <span>⚠️</span>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto text-red-600 hover:text-red-800">✕</button>
           </div>
         )}
 
-        {/* Two-column grid */}
+        {/* 2 колонки */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Input */}
-          <div className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-slate-50 border-b border-border px-4 py-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">📥 Сирий текст</h2>
-              <span className="text-xs text-slate-500">{input.length} символів</span>
-            </div>
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Вставте сирий текст документа сюди... або завантажте файл вгорі."
-              className="flex-1 p-4 resize-none focus:outline-none text-sm font-mono text-slate-800 min-h-[500px]"
-            />
-          </div>
-
-          {/* Preview */}
-          <div className="bg-white border border-border rounded-lg overflow-hidden flex flex-col">
-            <div className="bg-slate-50 border-b border-border px-4 py-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">
-                📄 Результат {result?.type && <span className="text-xs text-primary-600 ml-2">[{result.type}]</span>}
-              </h2>
-              {result?.markdown && (
-                <div className="flex gap-2">
+          {/* === Ліва — сирий текст === */}
+          <section className="bg-white border border-ink-200 rounded-xl shadow-card overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-ink-200 flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink-800">Сирий текст</span>
+              <div className="flex-1" />
+              <div className="flex items-center gap-1 bg-ink-100 p-1 rounded-lg">
+                {(["text", "file", "gdoc"] as const).map((tab) => (
                   <button
-                    onClick={() => setPreviewMode(previewMode === "preview" ? "raw" : "preview")}
-                    className="text-xs px-2 py-1 bg-slate-200 hover:bg-slate-300 rounded"
+                    key={tab}
+                    onClick={() => setSourceTab(tab)}
+                    className={
+                      "px-3 py-1 text-xs font-medium rounded-md transition " +
+                      (sourceTab === tab
+                        ? "bg-white text-ink-900 shadow-sm"
+                        : "text-ink-600 hover:text-ink-900")
+                    }
                   >
-                    {previewMode === "preview" ? "📝 Markdown" : "👁️ Preview"}
+                    {tab === "text" ? "Текст" : tab === "file" ? "Файл" : "Google Doc"}
                   </button>
-                  <button
-                    onClick={handleCopy}
-                    className="text-xs px-2 py-1 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded"
-                  >
-                    📋 Копіювати
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="flex-1 overflow-auto p-6 min-h-[500px]">
-              {!result && !loading && (
-                <div className="text-center text-slate-400 mt-20 text-sm">
-                  Тут зявиться структурована версія документа.
-                </div>
-              )}
-              {loading && (
-                <div className="text-center text-slate-500 mt-20 text-sm">
-                  <div className="inline-block animate-spin text-2xl mb-2">⏳</div>
-                  <div>AI переписує документ за стандартом Selfy...</div>
-                  <div className="text-xs text-slate-400 mt-2">10-30 секунд</div>
-                </div>
-              )}
-              {result?.markdown &&
-                (previewMode === "preview" ? (
-                  <div className="prose-selfy">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.markdown}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <pre className="text-xs font-mono text-slate-700 whitespace-pre-wrap">{result.markdown}</pre>
                 ))}
+              </div>
             </div>
-          </div>
+
+            {sourceTab === "text" && (
+              <div className="flex-1 flex flex-col">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Вставте сирий текст, нотатки або чернетку статті…&#10;&#10;Напр.: «коли клієнт хоче повернути товар спочатку перевіряємо чи пройшло 14 днів…»"
+                  className="flex-1 p-4 resize-none focus:outline-none text-[14px] text-ink-800 min-h-[480px]"
+                  spellCheck={false}
+                />
+                <div className="px-4 py-3 border-t border-ink-200 flex items-center gap-3 bg-ink-50">
+                  <span className="text-xs text-ink-500">
+                    {input.trim() ? input.trim().split(/\s+/).length : 0} слів · {input.length} символів
+                  </span>
+                  <div className="flex-1" />
+                  <button
+                    onClick={handleRefactor}
+                    disabled={loading || !input.trim()}
+                    className="px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-ink-300 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center gap-2 shadow-card transition"
+                  >
+                    {loading ? (
+                      <>
+                        <span className="spin-slow inline-block">⟳</span>
+                        <span>Структурую…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>✨</span>
+                        <span>{result ? "Переструктурувати" : "Структурувати через AI"}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {sourceTab === "file" && (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center max-w-sm">
+                  <div className="text-5xl mb-3">📎</div>
+                  <h3 className="text-lg font-semibold text-ink-900 mb-1">Завантажити файл</h3>
+                  <p className="text-sm text-ink-600 mb-4">
+                    Витягнемо текст і автоматично структуруємо його у формат Outline.
+                  </p>
+                  <div className="text-xs text-ink-500 mb-4">.docx · .pdf · .md · .txt</div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.md,.docx,.pdf"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="inline-block px-5 py-2.5 rounded-lg border border-ink-300 bg-white hover:bg-ink-50 text-ink-800 text-sm font-medium cursor-pointer"
+                  >
+                    Обрати файл
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {sourceTab === "gdoc" && (
+              <div className="flex-1 flex items-center justify-center p-8">
+                <div className="text-center max-w-sm">
+                  <div className="text-5xl mb-3">☁️</div>
+                  <h3 className="text-lg font-semibold text-ink-900 mb-1">Імпорт з Google Docs</h3>
+                  <p className="text-sm text-ink-600 mb-4">
+                    Скоро: вставите посилання на документ — підтягнемо вміст через сервіс-акаунт.
+                  </p>
+                  <div className="text-xs text-ink-500">У розробці</div>
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* === Права — Preview як в Outline === */}
+          <section className="bg-white border border-ink-200 rounded-xl shadow-card overflow-hidden flex flex-col relative">
+            <div className="px-4 py-3 border-b border-ink-200 flex items-center gap-2">
+              <span className="text-sm font-semibold text-ink-800">Preview · як буде в Outline</span>
+              <div className="flex-1" />
+              {result?.markdown && (
+                <button
+                  onClick={handleCopy}
+                  className="text-xs px-2.5 py-1 rounded-md bg-ink-100 hover:bg-ink-200 text-ink-700 font-medium"
+                >
+                  📋 Копіювати markdown
+                </button>
+              )}
+            </div>
+
+            {/* AI overlay */}
+            {loading && (
+              <div className="absolute inset-0 bg-white/95 backdrop-blur-sm z-10 flex items-center justify-center">
+                <div className="text-center max-w-sm">
+                  <div className="ai-orb mx-auto mb-5" />
+                  <div className="text-base font-semibold text-ink-900 mb-1">AI структурує документ</div>
+                  <div className="text-sm text-ink-600">{aiStep}</div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex-1 overflow-auto min-h-[520px]">
+              {!result && !loading && (
+                <div className="h-full flex flex-col items-center justify-center text-center text-ink-400 p-8">
+                  <div className="text-5xl mb-3 opacity-30">📄</div>
+                  <p className="text-sm">
+                    Введіть текст ліворуч і натисніть «Структурувати через AI», щоб побачити готову статтю.
+                  </p>
+                </div>
+              )}
+
+              {result?.markdown && !loading && (
+                <article className="p-8">
+                  <input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="w-full text-[28px] font-bold text-ink-900 mb-4 focus:outline-none border-b-2 border-transparent focus:border-accent-300"
+                  />
+                  <div className="prose-outline">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result.markdown.replace(/^#\s+.+\n+/, "")}
+                    </ReactMarkdown>
+                  </div>
+                </article>
+              )}
+            </div>
+          </section>
         </div>
 
-        {/* Duplicates block */}
+        {/* === DuplicatePanel (під двома колонками) === */}
         {result?.duplicates && result.duplicates.length > 0 && (
-          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
-            <h3 className="font-semibold text-amber-900 mb-2">🔍 Знайдені схожі статті в Outline:</h3>
-            <ul className="space-y-1 text-sm">
-              {result.duplicates.map((d) => (
-                <li key={d.id}>
-                  <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">
-                    {d.title}
-                  </a>
-                  <span className="text-amber-700 ml-2">— {Math.round(d.matchScore * 100)}% збіг</span>
-                </li>
-              ))}
-            </ul>
-            {result.recommendation && (
-              <p className="mt-3 text-sm text-amber-900 font-medium">💡 {result.recommendation}</p>
-            )}
+          <div className="mt-4 bg-white border border-ink-200 rounded-xl shadow-card overflow-hidden">
+            <div className="px-4 py-3 border-b border-ink-200 flex items-center gap-2">
+              <span className="text-base">🔍</span>
+              <span className="text-sm font-semibold text-ink-800">Перевірка дублікатів</span>
+              <span className="text-xs text-ink-500 ml-2">{result.duplicates.length} схожих знайдено</span>
+            </div>
+            <div className="p-4 space-y-3">
+              {result.duplicates.map((d) => {
+                const pct = Math.round(d.matchScore * 100);
+                const isFlag = d.matchScore >= 0.6;
+                return (
+                  <div
+                    key={d.id}
+                    className={
+                      "rounded-lg border p-4 " +
+                      (isFlag
+                        ? "bg-amber-50 border-amber-300"
+                        : "bg-ink-50 border-ink-200")
+                    }
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <a
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-semibold text-ink-900 hover:text-accent-600"
+                          >
+                            {d.title}
+                          </a>
+                          {isFlag && <span className="text-amber-700 text-xs">⚠️ висока схожість</span>}
+                        </div>
+                        {(d.collection || d.updated) && (
+                          <div className="text-xs text-ink-500 mb-2">
+                            {d.collection}
+                            {d.collection && d.updated && " · "}
+                            {d.updated && `оновлено ${d.updated}`}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-1.5 bg-ink-200 rounded-full overflow-hidden">
+                            <div
+                              className={
+                                "h-full " +
+                                (isFlag ? "bg-amber-500" : "bg-ink-400")
+                              }
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-ink-700 min-w-[36px] text-right">{pct}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {isFlag && (
+                      <div className="mt-3 pt-3 border-t border-amber-200 flex items-center gap-3">
+                        <span className="text-sm text-amber-900 flex-1">
+                          🔄 Рекомендуємо <b>оновити існуючу статтю</b> замість створення нової.
+                        </span>
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-md bg-white border border-amber-300 hover:bg-amber-100 text-xs font-medium text-amber-900"
+                        >
+                          Відкрити в Outline
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
+      </main>
 
-        {/* Publish button */}
-        {result?.markdown && (
-          <div className="mt-4 flex justify-end gap-3">
+      {/* === FooterBar (sticky внизу коли є result) === */}
+      {result?.markdown && (
+        <footer className="sticky bottom-0 bg-white border-t border-ink-200 shadow-soft mt-4">
+          <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+            {/* Колекція */}
+            <div className="flex flex-col">
+              <span className="text-[10px] text-ink-500 uppercase tracking-wider mb-0.5">Колекція</span>
+              <select
+                value={selectedCollectionId}
+                onChange={(e) => setSelectedCollectionId(e.target.value)}
+                className="px-3 py-2 rounded-md border border-ink-200 text-sm bg-white focus:border-accent-400 focus:outline-none"
+              >
+                <option value="">Авто (за типом)</option>
+                {collections.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Шаблон */}
+            <div className="flex flex-col">
+              <span className="text-[10px] text-ink-500 uppercase tracking-wider mb-0.5">Шаблон</span>
+              <select
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+                className="px-3 py-2 rounded-md border border-ink-200 text-sm bg-white focus:border-accent-400 focus:outline-none"
+              >
+                {TEMPLATES.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex-1" />
+
             <button
               onClick={() => {
                 setInput("");
                 setResult(null);
                 setError(null);
+                setTitle("");
               }}
-              className="px-5 py-2 border border-border text-slate-700 rounded-md hover:bg-slate-50 text-sm"
+              className="px-4 py-2.5 rounded-lg border border-ink-200 hover:bg-ink-50 text-ink-700 text-sm font-medium"
             >
               ✕ Очистити
             </button>
+
+            <button
+              onClick={handleSaveDraft}
+              className="px-4 py-2.5 rounded-lg border border-ink-200 hover:bg-ink-50 text-ink-700 text-sm font-medium"
+            >
+              💾 Зберегти .md
+            </button>
+
             <button
               onClick={handlePublish}
               disabled={loading}
-              className="bg-accent-500 hover:bg-accent-600 disabled:bg-slate-300 text-white px-6 py-2 rounded-md text-sm font-semibold"
+              className="px-5 py-2.5 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-ink-300 text-white text-sm font-semibold flex items-center gap-2 shadow-card"
             >
               📤 Опублікувати чернеткою в Outline
             </button>
           </div>
-        )}
-      </main>
+        </footer>
+      )}
 
-      <footer className="bg-white border-t border-border py-4 mt-8">
-        <div className="max-w-7xl mx-auto px-6 text-center text-xs text-slate-500">
-          Selfy © 2026 · Бета-версія редактора
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-ink-900 text-white px-5 py-2.5 rounded-lg shadow-soft text-sm font-medium z-50">
+          {toast}
         </div>
-      </footer>
+      )}
     </div>
   );
 }

@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-surface text-slate-900;
+  }
+}
+
+/* Markdown preview styles */
+.prose-selfy {
+  @apply text-slate-800 leading-relaxed;
+}
+.prose-selfy h1 {
+  @apply text-3xl font-bold mb-4 mt-6 text-primary-900 border-b border-border pb-2;
+}
+.prose-selfy h2 {
+  @apply text-2xl font-semibold mb-3 mt-6 text-primary-700;
+}
+.prose-selfy h3 {
+  @apply text-xl font-semibold mb-2 mt-4 text-primary-600;
+}
+.prose-selfy p {
+  @apply mb-3;
+}
+.prose-selfy ul {
+  @apply list-disc list-inside mb-3 space-y-1;
+}
+.prose-selfy ol {
+  @apply list-decimal list-inside mb-3 space-y-1;
+}
+.prose-selfy a {
+  @apply text-primary-600 underline hover:text-primary-700;
+}
+.prose-selfy code {
+  @apply bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono text-accent-700;
+}
+.prose-selfy pre {
+  @apply bg-slate-900 text-slate-100 p-4 rounded-md overflow-x-auto mb-4;
+}
+.prose-selfy pre code {
+  @apply bg-transparent text-slate-100 p-0;
+}
+.prose-selfy blockquote {
+  @apply border-l-4 border-primary-500 pl-4 italic text-slate-600 my-3;
+}
+.prose-selfy table {
+  @apply border-collapse border border-border mb-4 w-full;
+}
+.prose-selfy th, .prose-selfy td {
+  @apply border border-border px-3 py-2 text-left;
+}
+.prose-selfy th {
+  @apply bg-primary-50 font-semibold;
+}
+.prose-selfy hr {
+  @apply border-t border-border my-6;
+}
+.prose-selfy input[type="checkbox"] {
+  @apply mr-2 accent-primary-600;
+}

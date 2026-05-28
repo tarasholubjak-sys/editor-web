@@ -1,0 +1,29 @@
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Env
+.env
+.env.local
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+.turbo
+
+# Скіл-дані (копіюються при білді з ../skills/)
+skill-data/

@@ -1,53 +1,37 @@
 /**
- * HTTP Basic Auth на весь editor-web (UI + API).
+ * NextAuth middleware — захищає весь editor-web.
  *
- * Захищає від випадкових користувачів у VPN-мережі компанії —
- * хтось може зайти на editor.selfy.com.ua і пропалити токени.
- *
- * ENV:
- *   EDITOR_AUTH_USER     — логін (default: selfy)
- *   EDITOR_AUTH_PASSWORD — пароль. Якщо не задано — middleware вимкнено (dev).
+ * Дозволяє без авторизації тільки /api/auth/* і /auth/signin (сама сторінка логіну).
+ * Все інше → редірект на /auth/signin.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+
+export default auth((req) => {
+  const { nextUrl, auth: session } = req;
+  const path = nextUrl.pathname;
+
+  // Публічні шляхи: NextAuth API + сторінка логіну
+  const isPublic =
+    path.startsWith("/api/auth") ||
+    path.startsWith("/auth/") ||
+    path === "/favicon.ico" ||
+    path.startsWith("/_next/") ||
+    path.endsWith(".png") ||
+    path.endsWith(".svg") ||
+    path.endsWith(".ico");
+
+  if (isPublic) return;
+
+  if (!session?.user) {
+    const signInUrl = new URL("/auth/signin", nextUrl.origin);
+    // зберігаємо куди юзер хотів зайти, щоб після логіну повернути
+    signInUrl.searchParams.set("callbackUrl", nextUrl.pathname + nextUrl.search);
+    return Response.redirect(signInUrl);
+  }
+});
 
 export const config = {
-  // Захищаємо все крім _next, статики і favicon
-  matcher: ["/((?!_next|favicon|robots.txt|.*\\..*).*)"],
+  // _next, статика виключені автоматично через matcher
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|webp|ico)$).*)"],
 };
-
-export function middleware(req: NextRequest) {
-  const expectedPassword = process.env.EDITOR_AUTH_PASSWORD;
-
-  // Якщо пароль не заданий — пропускаємо (dev-режим без захисту)
-  if (!expectedPassword) {
-    return NextResponse.next();
-  }
-
-  const expectedUser = process.env.EDITOR_AUTH_USER || "selfy";
-  const authHeader = req.headers.get("authorization") || "";
-
-  if (authHeader.toLowerCase().startsWith("basic ")) {
-    try {
-      const raw = authHeader.slice(6).trim();
-      const decoded = Buffer.from(raw, "base64").toString("utf-8");
-      const sepIdx = decoded.indexOf(":");
-      if (sepIdx > -1) {
-        const user = decoded.slice(0, sepIdx);
-        const pass = decoded.slice(sepIdx + 1);
-        if (user === expectedUser && pass === expectedPassword) {
-          return NextResponse.next();
-        }
-      }
-    } catch {
-      /* fallthrough — 401 */
-    }
-  }
-
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Selfy Editor", charset="UTF-8"',
-    },
-  });
-}

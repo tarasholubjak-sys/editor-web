@@ -252,6 +252,7 @@ export async function GET() {
         id: c.id,
         name: c.name,
         url: buildPublicUrl(c.url || `/collection/${c.id}`),
+        url: buildPublicUrl(c.url || `/collection/${c.id}`),
         count: docsByCollection[c.name]?.length || 0,
       })),
     };

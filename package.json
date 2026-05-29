@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
+    "@auth/core": "^0.37.4",
     "@google/genai": "^2.6.0",
+    "next-auth": "5.0.0-beta.25",
     "googleapis": "^144.0.0",
     "mammoth": "^1.8.0",
     "next": "^14.2.18",

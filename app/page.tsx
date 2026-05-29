@@ -21,6 +21,13 @@ type RefactorResult = {
   recommendation?: string;
 };
 
+type LanguageIssue = {
+  type: string;
+  found: string;
+  suggestion: string;
+  severity: "low" | "medium" | "high";
+};
+
 type AnalysisResult = {
   overview: {
     type: string;
@@ -44,6 +51,11 @@ type AnalysisResult = {
     type: string;
     rationale?: string;
   }>;
+  languageQuality?: {
+    score: number;
+    verdict: string;
+    issues: LanguageIssue[];
+  };
 };
 
 type Collection = { id: string; name: string };
@@ -127,6 +139,7 @@ export default function HomePage() {
   };
 
   const handleRefactor = async () => {
+    if (loading) return; // захист від подвійного кліку
     if (!input.trim()) {
       setError("Введи сирий текст або завантаж файл");
       return;
@@ -158,6 +171,7 @@ export default function HomePage() {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (loading) return;
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
@@ -179,11 +193,13 @@ export default function HomePage() {
   };
 
   const handlePublish = async () => {
+    if (loading) return; // захист від подвійного кліку → дублі в Outline
     if (!result?.markdown) return;
     if (!confirm(`Опублікувати "${title}" як чернетку в Outline?`)) return;
     setLoading(true);
     try {
-      const md = result.markdown.replace(/^#\s+.+$/m, `# ${title}`);
+      // callback-form щоб title з $1/$& не інтерпретувався як backreference
+      const md = result.markdown.replace(/^#\s+.+$/m, () => `# ${title}`);
       const res = await fetch("/api/publish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -216,19 +232,42 @@ export default function HomePage() {
     showToast("Завантажую markdown файл");
   };
 
-  const handleCopy = () => {
-    if (result?.markdown) {
-      navigator.clipboard.writeText(result.markdown);
-      showToast("Markdown у буфері");
+  // безпечна копія: clipboard API падає на HTTP/non-secure context
+  const safeCopy = async (text: string, okMsg: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        showToast(okMsg);
+        return;
+      }
+      throw new Error("Clipboard API недоступний");
+    } catch {
+      // fallback через textarea
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast(okMsg);
+      } catch {
+        showToast("Не вдалось скопіювати — виділи і Ctrl+C");
+      }
     }
+  };
+
+  const handleCopy = () => {
+    if (result?.markdown) safeCopy(result.markdown, "Markdown у буфері");
   };
 
   const handleActionClick = (label: string, rationale?: string) => {
     const prompt = rationale
       ? `${label}\n\nКонтекст: ${rationale}`
       : label;
-    navigator.clipboard.writeText(prompt);
-    showToast(`Скопійовано: "${label.slice(0, 30)}..."`);
+    safeCopy(prompt, `Скопійовано: "${label.slice(0, 30)}..."`);
   };
 
   return (
@@ -254,6 +293,9 @@ export default function HomePage() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Синхронізовано з Outline + GDrive
           </div>
+          <a href="/tree" className="text-sm text-purple-600 hover:text-purple-700 font-semibold">
+            🌳 Аналіз бази
+          </a>
           <a href="https://wiki.selfy.com.ua" target="_blank" rel="noopener noreferrer"
             className="text-sm text-accent-600 hover:text-accent-700 font-medium">↗ Outline</a>
         </div>
@@ -565,6 +607,63 @@ export default function HomePage() {
                     ))}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Мовна якість */}
+            {analysis?.languageQuality && (
+              <div className="border-t border-purple-200 px-5 py-4 bg-white/60">
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-base">🇺🇦</span>
+                  <span className="text-sm font-bold text-ink-900">Якість української</span>
+                  <div className="flex-1" />
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 h-1.5 bg-ink-200 rounded-full overflow-hidden">
+                      <div
+                        className={
+                          "h-full " +
+                          (analysis.languageQuality.score > 85
+                            ? "bg-emerald-500"
+                            : analysis.languageQuality.score > 65
+                            ? "bg-amber-500"
+                            : "bg-red-500")
+                        }
+                        style={{ width: `${analysis.languageQuality.score}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-bold text-ink-900 min-w-[40px] text-right">{analysis.languageQuality.score}%</span>
+                  </div>
+                  <span className="text-xs text-ink-600 italic">{analysis.languageQuality.verdict}</span>
+                </div>
+                {analysis.languageQuality.issues && analysis.languageQuality.issues.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {analysis.languageQuality.issues.map((iss, i) => {
+                      const sevClass =
+                        iss.severity === "high"
+                          ? "bg-red-50 border-red-200"
+                          : iss.severity === "medium"
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-blue-50 border-blue-200";
+                      return (
+                        <div key={i} className={"rounded-md p-2 border " + sevClass}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] uppercase tracking-wider font-bold text-ink-700">
+                              {iss.type}
+                            </span>
+                            <span className="text-[10px] text-ink-500">{iss.severity}</span>
+                          </div>
+                          <div className="text-xs">
+                            <span className="line-through text-red-600">{iss.found}</span>
+                            <span className="text-ink-400 mx-1">→</span>
+                            <span className="text-emerald-700 font-semibold">{iss.suggestion}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-sm text-emerald-700">✓ Мова чиста, проблем не знайдено</div>
+                )}
               </div>
             )}
           </div>

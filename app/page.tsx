@@ -683,8 +683,6 @@ export default function HomePage() {
               </select>
             </div>
 
-            </div>
-
             <div className="flex flex-col">
               <span className="text-[10px] text-ink-500 uppercase tracking-wider mb-0.5">Шаблон</span>
               <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)}

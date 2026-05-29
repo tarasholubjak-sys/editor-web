@@ -9,17 +9,31 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import mammoth from "mammoth";
+import { checkRate, rateKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const MAX_SIZE = 5 * 1024 * 1024;
+const PARSE_TIMEOUT_MS = 30000;
+
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  const t = new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label}: timeout ${ms}ms`)), ms));
+  return Promise.race([p, t]);
+}
+
 export async function POST(req: NextRequest) {
+  const key = rateKey(req);
+  if (!checkRate(key, 10, 60000)) {
+    return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
+  }
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     if (!file) return NextResponse.json({ error: "Файл не передано" }, { status: 400 });
-    if (file.size > 15 * 1024 * 1024) {
-      return NextResponse.json({ error: "Файл занадто великий (макс 15 МБ)" }, { status: 400 });
+    if (file.size > MAX_SIZE) {
+      return NextResponse.json({ error: "Файл занадто великий (макс 5 МБ)" }, { status: 400 });
     }
 
     const name = file.name.toLowerCase();
@@ -30,15 +44,20 @@ export async function POST(req: NextRequest) {
     }
 
     if (name.endsWith(".docx")) {
-      const result = await mammoth.extractRawText({ buffer });
+      const result = await withTimeout(
+        mammoth.extractRawText({ buffer }),
+        PARSE_TIMEOUT_MS,
+        "DOCX parse",
+      );
       return NextResponse.json({ text: result.value });
     }
 
     if (name.endsWith(".pdf")) {
       try {
         // pdf-parse динамічно — щоб уникнути проблем з ESM/CJS
-        const pdfParse = (await import("pdf-parse")).default;
-        const data = await pdfParse(buffer);
+        const pdfMod: any = await import("pdf-parse");
+        const pdfParse = pdfMod.default || pdfMod;
+        const data: any = await withTimeout(pdfParse(buffer), PARSE_TIMEOUT_MS, "PDF parse");
         const text = String(data.text || "").trim();
         if (!text) {
           return NextResponse.json(

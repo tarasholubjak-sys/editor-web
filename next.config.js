@@ -1,10 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: false,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
   experimental: {
-    serverComponentsExternalPackages: ["mammoth"],
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
   },
 };
 module.exports = nextConfig;

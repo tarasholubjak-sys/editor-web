@@ -5,6 +5,7 @@
  * Повертає JSON з оцінкою, дублями, прогалинами і запропонованою новою структурою.
  *
  * Кешується на 5 хвилин (in-memory) щоб не бити LLM щоразу.
+ * Bypass cache: ?force=1
  */
 
 import { NextResponse } from "next/server";
@@ -13,8 +14,11 @@ import { outlineListCollections, buildPublicUrl } from "@/lib/outline";
 import { isGDriveAvailable, getGDriveEmail } from "@/lib/gdrive";
 import { google } from "googleapis";
 import fs from "fs";
+import { createHash } from "crypto";
+import { checkRate, rateKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 90;
 
 const KEY_PATH = process.env.GDRIVE_KEY_PATH || "/opt/wiki-selfy-bot/secrets/gdrive-key.json";
@@ -172,10 +176,18 @@ const TREE_PROMPT = `Ти — архітектор бази знань Selfy (B2
 
 Поверни ТІЛЬКИ JSON.`;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const key = rateKey(req);
+  if (!checkRate(key, 6, 60_000)) {
+    return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
+  }
+
   try {
-    // Кеш
-    if (cache && Date.now() - cache.ts < CACHE_TTL_MS) {
+    const url = new URL(req.url);
+    const force = url.searchParams.get("force") === "1";
+
+    // Кеш (bypass якщо ?force=1)
+    if (!force && cache && Date.now() - cache.ts < CACHE_TTL_MS) {
       return NextResponse.json({ tree: cache.data, cached: true });
     }
 
@@ -232,9 +244,10 @@ export async function GET() {
 
     const tree = safeJson(text);
     if (!tree) {
-      // Логуємо що повернула LLM щоб діагностувати
-      console.error("[tree] LLM повернула невалідний JSON. Перші 2000 символів:");
-      console.error(String(text).slice(0, 2000));
+      // Логуємо masked-метадані щоб діагностувати без витоку контенту
+      const len = String(text).length;
+      const hash = createHash("sha256").update(String(text)).digest("hex").slice(0, 12);
+      console.error(`[tree] Невалідний JSON: len=${len} hash=${hash} preview=${String(text).slice(0, 200)}`);
       return NextResponse.json(
         { error: "LLM не повернула валідний JSON", rawSample: String(text).slice(0, 300) },
         { status: 500 },

@@ -2,13 +2,15 @@
  * POST /api/publish
  *
  * Тіло: { markdown: string, type: string, collectionId?: string }
- * Відповідь: { url: string }
+ * Відповідь: { url: string } або { duplicate: true, url, title, message }
  *
  * Створює чернетку в Outline (publish: false), яку потім керівник публікує руками.
+ * Перевіряє exact-title duplicate ПЕРЕД створенням — щоб не плодити дублі.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { outlineCreateDraft, outlineListCollections } from "@/lib/outline";
+import { outlineCreateDraft, outlineListCollections, outlineSearch, buildPublicUrl } from "@/lib/outline";
+import { checkRate, rateKey } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -50,6 +52,11 @@ async function pickCollection(type: string, override?: string): Promise<string> 
 }
 
 export async function POST(req: NextRequest) {
+  const key = rateKey(req);
+  if (!checkRate(key, 10, 60_000)) {
+    return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
+  }
+
   try {
     const { markdown, type, collectionId } = await req.json();
     if (!markdown || typeof markdown !== "string" || markdown.length < 50) {
@@ -57,6 +64,21 @@ export async function POST(req: NextRequest) {
     }
 
     const title = extractTitle(markdown);
+
+    // Dedup-перевірка ДО створення: якщо exact title match — повертаємо існуючу
+    const existing = await outlineSearch(title, 3).catch(() => []);
+    const exactMatch = existing.find(
+      (c: any) => c?.document?.title?.toLowerCase().trim() === title.toLowerCase().trim(),
+    );
+    if (exactMatch?.document?.id) {
+      return NextResponse.json({
+        duplicate: true,
+        url: buildPublicUrl(exactMatch.document.url),
+        title: exactMatch.document.title,
+        message: "Документ з такою назвою вже існує. Створення скасовано — оновіть існуючий замість дубля.",
+      });
+    }
+
     const collId = await pickCollection(type || "sop", collectionId);
 
     // Прибираємо H1 з тіла (Outline сам показує title)

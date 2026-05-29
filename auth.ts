@@ -49,6 +49,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return ok;
     },
+    async jwt({ token, profile }) {
+      if (profile?.email) token.email = profile.email;
+      return token;
+    },
     async session({ session, token }) {
       // Прокидаємо email у session
       if (session.user && token.email) {

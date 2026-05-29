@@ -65,21 +65,6 @@
   @apply mr-2 accent-accent-500;
 }
 
-/* Notice-блоки (як в Outline) */
-.prose-outline blockquote p:first-child:has-text(":::info"),
-.notice-info {
-  @apply bg-blue-50 border-l-4 border-blue-400 text-blue-900 p-3 rounded-r my-3;
-}
-.notice-warning {
-  @apply bg-amber-50 border-l-4 border-amber-400 text-amber-900 p-3 rounded-r my-3;
-}
-.notice-tip {
-  @apply bg-purple-50 border-l-4 border-purple-400 text-purple-900 p-3 rounded-r my-3;
-}
-.notice-success {
-  @apply bg-emerald-50 border-l-4 border-emerald-400 text-emerald-900 p-3 rounded-r my-3;
-}
-
 /* AI overlay (під час обробки) */
 .ai-orb {
   width: 56px;
@@ -103,3 +88,9 @@
 .spin-slow {
   animation: spin 1.6s linear infinite;
 }
+
+/* Notice блоки для Outline-style markdown */
+.notice-info { background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 16px; border-radius: 6px; margin: 12px 0; }
+.notice-warning { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 12px 16px; border-radius: 6px; margin: 12px 0; }
+.notice-tip { background: #f0fdf4; border-left: 4px solid #10b981; padding: 12px 16px; border-radius: 6px; margin: 12px 0; }
+.notice-success { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 12px 16px; border-radius: 6px; margin: 12px 0; }

@@ -227,13 +227,16 @@ export async function GET() {
     const { text } = await llmGenerate({
       system: "Ти — структурний архітектор бази знань. Завжди повертай чистий валідний JSON без преамбули.",
       user: prompt,
-      maxTokens: 4500,
+      maxTokens: 12000,
     });
 
     const tree = safeJson(text);
     if (!tree) {
+      // Логуємо що повернула LLM щоб діагностувати
+      console.error("[tree] LLM повернула невалідний JSON. Перші 2000 символів:");
+      console.error(String(text).slice(0, 2000));
       return NextResponse.json(
-        { error: "LLM не повернула валідний JSON" },
+        { error: "LLM не повернула валідний JSON", rawSample: String(text).slice(0, 300) },
         { status: 500 },
       );
     }
@@ -251,7 +254,6 @@ export async function GET() {
       collections: collections.map((c: any) => ({
         id: c.id,
         name: c.name,
-        url: buildPublicUrl(c.url || `/collection/${c.id}`),
         url: buildPublicUrl(c.url || `/collection/${c.id}`),
         count: docsByCollection[c.name]?.length || 0,
       })),

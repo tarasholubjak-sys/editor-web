@@ -16,7 +16,8 @@ ts(){ date '+%F %T'; }
 tg() { # $1 = text
   local token chat
   token=$(grep -E '^TELEGRAM_BOT_TOKEN=' "$BOT_ENV" 2>/dev/null | cut -d= -f2-)
-  chat=$(grep -E '^KNOWLEDGE_GAPS_CHAT_IDS=' "$BOT_ENV" 2>/dev/null | cut -d= -f2- | cut -d, -f1)
+  chat=$(grep -E '^MONITOR_CHAT_ID=' "$BOT_ENV" 2>/dev/null | cut -d= -f2-)
+  [ -z "$chat" ] && chat=$(grep -E '^KNOWLEDGE_GAPS_CHAT_IDS=' "$BOT_ENV" 2>/dev/null | cut -d= -f2- | cut -d, -f1)
   [ -z "$token" ] || [ -z "$chat" ] && return 0
   curl -s -m 10 "https://api.telegram.org/bot${token}/sendMessage" \
     --data-urlencode "chat_id=${chat}" \

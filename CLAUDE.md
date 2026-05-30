@@ -57,7 +57,9 @@ editor-web/
 ├── auth.ts                          ← NextAuth Google + allowlist
 ├── middleware.ts                    ← редірект на signin (на сервері .bak)
 ├── skill-data/                      ← копія skills/selfy-knowledge-editor/
-└── scripts/copy-skill.mjs           ← prebuild script
+├── scripts/copy-skill.mjs           ← prebuild script
+├── deploy/                          ← авто-деплой вотчер (watch-loop.sh, auto-deploy.sh, README)
+└── .gitattributes                   ← LF для shell/systemd (анти-CRLF на Linux)
 ```
 
 ## API endpoints
@@ -110,6 +112,8 @@ npm run dev
 ```
 
 ## Деплой (стандартний цикл)
+
+> **Авто-деплой живий** (з 2026-05-30): `git push` → сервер сам підхопить за ≤60с через pm2-вотчер `selfy-deploy`. Кроки нижче — ручний fallback / для діагностики. Деталі: [`deploy/README.md`](deploy/README.md).
 
 ```powershell
 # 1. PowerShell

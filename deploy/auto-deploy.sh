@@ -48,14 +48,14 @@ deploy() {
   if [ "$mode" = "build" ]; then
     if [ "$deps_changed" = "1" ]; then
       log "$name: змінились залежності → npm install"
-      if ! npm install --no-audit --no-fund >>"$LOG" 2>&1; then
+      if ! timeout 300 npm install --no-audit --no-fund >>"$LOG" 2>&1; then
         log "$name: npm install ВПАВ — НЕ рестартую"
         return
       fi
     fi
     log "$name: build"
-    if ! NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
-      log "$name: BUILD ВПАВ — стара версія лишається живою, рестарту НЕ роблю"
+    if ! timeout 600 env NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
+      log "$name: BUILD ВПАВ/таймаут — стара версія лишається живою, рестарту НЕ роблю"
       return
     fi
   fi

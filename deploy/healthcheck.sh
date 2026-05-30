@@ -26,8 +26,9 @@ tg() { # $1 = text
 
 echo "[$(ts)] selfy-health loop started" >>"$LOG"
 while true; do
-  # editor-web
-  if curl -sf -m 8 -o /dev/null http://localhost:3001/api/collections; then ew=UP; else ew=DOWN; fi
+  # editor-web — перевіряємо І API, І головну сторінку (page-500 теж має тригерити алерт)
+  if curl -sf -m 8 -o /dev/null http://localhost:3001/api/collections \
+     && curl -sf -m 10 -o /dev/null http://localhost:3001/; then ew=UP; else ew=DOWN; fi
   # Outline (homepage; 2xx/3xx = живий)
   code=$(curl -s -m 8 -o /dev/null -w '%{http_code}' http://localhost:3000/ 2>/dev/null || echo 000)
   if [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then ol=UP; else ol=DOWN; fi

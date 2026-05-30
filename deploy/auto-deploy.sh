@@ -53,11 +53,17 @@ deploy() {
         return
       fi
     fi
-    log "$name: build"
-    if ! timeout 600 env NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
+    # Чистий білд у .next-build (стара .next живе → без простою), тоді атомарний swap.
+    # Уникає chunk-mismatch у .next від rebuild-in-place (інакше сторінки → 500).
+    log "$name: build (у .next-build, чистий)"
+    rm -rf .next-build
+    if ! timeout 600 env NEXT_DIST_DIR=.next-build NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
       log "$name: BUILD ВПАВ/таймаут — стара версія лишається живою, рестарту НЕ роблю"
+      rm -rf .next-build
       return
     fi
+    rm -rf .next && mv .next-build .next
+    log "$name: build OK → .next оновлено (atomic swap)"
   fi
 
   if pm2 restart "$name" --update-env >>"$LOG" 2>&1; then

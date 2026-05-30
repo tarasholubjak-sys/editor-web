@@ -83,7 +83,7 @@ ANTHROPIC_API_KEY=       # основний
 OPENAI_API_KEY=          # fallback
 LLM_CHAIN=anthropic,openai,gemini
 OPENAI_MODEL=gpt-4o-mini
-ANTHROPIC_MODEL=claude-haiku-4-5
+ANTHROPIC_MODEL=claude-sonnet-4-6   # Sonnet — якість української/рефактора (не haiku)
 
 # Outline
 OUTLINE_BASE_URL=https://wiki.selfy.com.ua/api

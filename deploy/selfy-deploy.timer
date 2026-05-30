@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Selfy auto-deploy watcher every 60s
+
+[Timer]
+OnBootSec=60
+OnUnitActiveSec=60
+# Якщо сервер був вимкнений коли мав спрацювати тік — спрацювати раз на завантаженні.
+Persistent=true
+AccuracySec=10s
+Unit=selfy-deploy.service
+
+[Install]
+WantedBy=timers.target

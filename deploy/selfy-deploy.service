@@ -1,0 +1,13 @@
+[Unit]
+Description=Selfy auto-deploy watcher (polls GitHub, deploys on new commits)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=su
+# Login shell (-l) підтягує ~/.bashrc/~/.profile → nvm АБО apt node/npm/pm2 на PATH.
+# Працює незалежно від того де встановлений node — без хардкоду версії.
+ExecStart=/bin/bash -lc '/opt/editor-web/deploy/auto-deploy.sh'
+# Запобіжник: не дати одному тіку висіти вічно якщо build справді зависне.
+TimeoutStartSec=900

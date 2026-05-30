@@ -47,9 +47,9 @@ deploy() {
 
   if [ "$mode" = "build" ]; then
     if [ "$deps_changed" = "1" ]; then
-      log "$name: змінились залежності → npm install"
-      if ! timeout 300 npm install --no-audit --no-fund >>"$LOG" 2>&1; then
-        log "$name: npm install ВПАВ — НЕ рестартую"
+      log "$name: змінились залежності → npm ci (не змінює lock, відтворювано)"
+      if ! timeout 300 npm ci --no-audit --no-fund >>"$LOG" 2>&1; then
+        log "$name: npm ci ВПАВ — НЕ рестартую"
         return
       fi
     fi

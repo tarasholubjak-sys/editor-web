@@ -13,7 +13,7 @@ set -uo pipefail
 exec 9>/tmp/selfy-deploy.lock
 flock -n 9 || exit 0
 
-LOG=/opt/selfy-deploy.log
+LOG="${SELFY_DEPLOY_LOG:-/opt/selfy-deploy.log}"
 # Обрізаємо лог якщо переріс ~10MB (накопичення build-виводу за місяці)
 [ -f "$LOG" ] && [ "$(stat -c%s "$LOG" 2>/dev/null || echo 0)" -gt 10000000 ] && : >"$LOG"
 log() { echo "[$(date '+%F %T')] $*" >>"$LOG"; }

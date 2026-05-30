@@ -8,6 +8,10 @@ dist/
 node_modules/
 npm-debug.log*
 
+# TypeScript
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Env
 .env
 .env.local
@@ -26,4 +30,4 @@ Thumbs.db
 .turbo
 
 # Скіл-дані (копіюються при білді з ../skills/)
-
+skill-data/

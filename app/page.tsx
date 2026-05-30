@@ -173,6 +173,12 @@ export default function HomePage() {
     if (result?.markdown) safeCopy(result.markdown, showToast, "Markdown у буфері");
   };
 
+  // Ручне редагування згенерованого markdown перед публікацією
+  const handleMarkdownChange = (md: string) => {
+    setResult((prev) => (prev ? { ...prev, markdown: md } : prev));
+    setTitle(extractTitle(md));
+  };
+
   const handleActionClick = (label: string, rationale?: string) => {
     const prompt = rationale
       ? `${label}\n\nКонтекст: ${rationale}`
@@ -221,6 +227,7 @@ export default function HomePage() {
             title={title}
             setTitle={setTitle}
             onCopy={handleCopy}
+            onMarkdownChange={handleMarkdownChange}
           />
         </div>
 

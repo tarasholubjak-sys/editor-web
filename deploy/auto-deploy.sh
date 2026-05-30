@@ -54,11 +54,20 @@ deploy() {
       fi
     fi
     # Чистий білд у .next-build (стара .next живе → без простою), тоді атомарний swap.
-    # Уникає chunk-mismatch у .next від rebuild-in-place (інакше сторінки → 500).
+    # Retry до 4 разів — Next 14 build worker зрідка падає V8 SIGTRAP/SIGSEGV (флакі).
     log "$name: build (у .next-build, чистий)"
-    rm -rf .next-build
-    if ! timeout 600 env NEXT_DIST_DIR=.next-build NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
-      log "$name: BUILD ВПАВ/таймаут — стара версія лишається живою, рестарту НЕ роблю"
+    built=0
+    for attempt in 1 2 3 4; do
+      rm -rf .next-build
+      if timeout 600 env NEXT_DIST_DIR=.next-build NODE_OPTIONS='--max-old-space-size=4096' npm run build >>"$LOG" 2>&1; then
+        built=1
+        break
+      fi
+      log "$name: build спроба $attempt впала (можливо V8 SIGTRAP) — повтор за 5с"
+      sleep 5
+    done
+    if [ "$built" != "1" ]; then
+      log "$name: BUILD впав після 4 спроб — стара версія лишається живою, рестарту НЕ роблю"
       rm -rf .next-build
       return
     fi

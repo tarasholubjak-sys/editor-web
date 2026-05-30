@@ -67,6 +67,35 @@ export async function outlineCreateDraft({
   };
 }
 
+export async function outlineGetDocument(id: string): Promise<OutlineDoc & { text: string }> {
+  const res = await outlineRequest("/documents.info", { id });
+  const doc = res?.data;
+  if (!doc?.id) throw new Error("Документ не знайдено в Outline");
+  return {
+    id: doc.id,
+    title: doc.title,
+    url: buildPublicUrl(doc.url),
+    collectionId: doc.collectionId,
+    text: doc.text || "",
+    updatedAt: doc.updatedAt,
+  };
+}
+
+export async function outlineUpdateDocument({
+  id,
+  title,
+  text,
+}: {
+  id: string;
+  title: string;
+  text: string;
+}): Promise<{ id: string; url: string }> {
+  const res = await outlineRequest("/documents.update", { id, title, text });
+  const doc = res?.data;
+  if (!doc?.id) throw new Error("Outline не оновив документ");
+  return { id: doc.id, url: buildPublicUrl(doc.url) };
+}
+
 export function buildPublicUrl(relativeUrl: string): string {
   if (!relativeUrl) return "";
   if (/^https?:\/\//.test(relativeUrl)) return relativeUrl;

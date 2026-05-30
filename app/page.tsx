@@ -32,6 +32,7 @@ export default function HomePage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
+  const [updateTarget, setUpdateTarget] = useState<{ id: string; title: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -85,6 +86,7 @@ export default function HomePage() {
     setLoading(true);
     setResult(null);
     setAnalysis(null);
+    setUpdateTarget(null);
     try {
       const res = await fetch("/api/refactor", {
         method: "POST",
@@ -132,7 +134,10 @@ export default function HomePage() {
   const handlePublish = async () => {
     if (loading) return; // захист від подвійного кліку → дублі в Outline
     if (!result?.markdown) return;
-    if (!confirm(`Опублікувати "${title}" як чернетку в Outline?`)) return;
+    const isUpdate = !!updateTarget;
+    if (!confirm(isUpdate
+      ? `Оновити існуючу статтю "${updateTarget!.title}" в Outline? (стара версія лишиться в історії ревізій)`
+      : `Опублікувати "${title}" як чернетку в Outline?`)) return;
     setLoading(true);
     try {
       // callback-form щоб title з $1/$& не інтерпретувався як backreference
@@ -144,12 +149,14 @@ export default function HomePage() {
           markdown: md,
           type: selectedTemplate,
           collectionId: selectedCollectionId || undefined,
+          documentId: updateTarget?.id,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Помилка публікації");
-      showToast(`Чернетку створено в Outline`);
+      showToast(isUpdate ? "Статтю оновлено в Outline" : "Чернетку створено в Outline");
       window.open(data.url, "_blank");
+      setUpdateTarget(null);
     } catch (err: any) {
       alert(`Помилка: ${err.message}`);
     } finally {
@@ -179,6 +186,48 @@ export default function HomePage() {
     setTitle(extractTitle(md));
   };
 
+  // Об'єднати з існуючою статтею Outline → оновити її замість створення дубля
+  const handleMerge = async (cand: DupCandidate) => {
+    if (loading || !result?.markdown || cand.source === "gdrive") return;
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newMarkdown: result.markdown, docId: cand.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Помилка об'єднання");
+      setResult((prev) => (prev ? { ...prev, markdown: data.merged } : prev));
+      setTitle(extractTitle(data.merged));
+      setUpdateTarget({ id: cand.id, title: cand.title });
+      showToast(`Об'єднано з "${cand.title}". Перевір і натисни «Оновити».`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err: any) {
+      setError(err.message || "Помилка об'єднання");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Застосувати всі мовні правки (русизми тощо) до markdown
+  const handleFixLanguage = () => {
+    const issues = analysis?.languageQuality?.issues;
+    if (!result?.markdown || !issues || issues.length === 0) return;
+    let md = result.markdown;
+    let n = 0;
+    for (const iss of issues) {
+      if (iss.found && iss.suggestion && md.includes(iss.found)) {
+        md = md.split(iss.found).join(iss.suggestion);
+        n++;
+      }
+    }
+    setResult((prev) => (prev ? { ...prev, markdown: md } : prev));
+    setTitle(extractTitle(md));
+    showToast(n > 0 ? `Застосовано мовних правок: ${n}` : "Немає що виправляти");
+  };
+
   const handleActionClick = (label: string, rationale?: string) => {
     const prompt = rationale
       ? `${label}\n\nКонтекст: ${rationale}`
@@ -192,6 +241,7 @@ export default function HomePage() {
     setAnalysis(null);
     setError(null);
     setTitle("");
+    setUpdateTarget(null);
   };
 
   return (
@@ -203,6 +253,14 @@ export default function HomePage() {
           <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mb-4 text-sm flex items-center gap-2">
             <span>⚠️</span><span>{error}</span>
             <button onClick={() => setError(null)} className="ml-auto text-red-600 hover:text-red-800">✕</button>
+          </div>
+        )}
+
+        {updateTarget && (
+          <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg px-4 py-2.5 mb-4 text-sm flex items-center gap-2 flex-wrap">
+            <span>🔄</span>
+            <span>Режим оновлення: при публікації <b>оновиться</b> існуюча стаття «{updateTarget.title}» (нова не створюється).</span>
+            <button onClick={() => setUpdateTarget(null)} className="ml-auto text-amber-700 hover:text-amber-900 underline">скасувати</button>
           </div>
         )}
 
@@ -235,6 +293,8 @@ export default function HomePage() {
           <DuplicatesPanel
             duplicates={result.duplicates}
             recommendation={result.recommendation}
+            onMerge={handleMerge}
+            busy={loading}
           />
         )}
 
@@ -242,6 +302,7 @@ export default function HomePage() {
           analyzing={analyzing}
           analysis={analysis}
           onActionClick={handleActionClick}
+          onFixLanguage={handleFixLanguage}
         />
       </main>
 
@@ -256,6 +317,7 @@ export default function HomePage() {
           onClear={handleClear}
           onSaveDraft={handleSaveDraft}
           onPublish={handlePublish}
+          updating={!!updateTarget}
         />
       )}
 

@@ -3,9 +3,11 @@ import type { DupCandidate } from "../lib/types";
 interface DuplicatesPanelProps {
   duplicates: DupCandidate[];
   recommendation?: string;
+  onMerge: (d: DupCandidate) => void;
+  busy?: boolean;
 }
 
-export default function DuplicatesPanel({ duplicates, recommendation }: DuplicatesPanelProps) {
+export default function DuplicatesPanel({ duplicates, recommendation, onMerge, busy }: DuplicatesPanelProps) {
   if (!duplicates || duplicates.length === 0) return null;
 
   return (
@@ -53,12 +55,20 @@ export default function DuplicatesPanel({ duplicates, recommendation }: Duplicat
               </div>
 
               {isFlag && (
-                <div className="mt-3 pt-3 border-t border-amber-200 flex items-center gap-3">
-                  <span className="text-sm text-amber-900 flex-1">
+                <div className="mt-3 pt-3 border-t border-amber-200 flex items-center gap-3 flex-wrap">
+                  <span className="text-sm text-amber-900 flex-1 min-w-[200px]">
                     {isGdrive
                       ? <>📂 Цей матеріал лежить у Google Drive — варто <b>перенести в Outline</b> і об'єднати.</>
                       : <>🔄 Рекомендуємо <b>оновити існуючу статтю</b> в Outline замість створення нової.</>}
                   </span>
+                  {!isGdrive && (
+                    <button
+                      onClick={() => onMerge(d)}
+                      disabled={busy}
+                      className="px-3 py-1.5 rounded-md bg-accent-500 hover:bg-accent-600 disabled:bg-ink-300 text-white text-xs font-semibold">
+                      🔀 Об'єднати та оновити
+                    </button>
+                  )}
                   <a href={d.url} target="_blank" rel="noopener noreferrer"
                     className="px-3 py-1.5 rounded-md bg-white border border-amber-300 hover:bg-amber-100 text-xs font-medium text-amber-900">
                     {isGdrive ? "Відкрити в Google Drive" : "Відкрити в Outline"}

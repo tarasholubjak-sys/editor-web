@@ -13,6 +13,7 @@ interface FooterBarProps {
   onClear: () => void;
   onSaveDraft: () => void;
   onPublish: () => void;
+  updating?: boolean;
 }
 
 export default function FooterBar({
@@ -25,6 +26,7 @@ export default function FooterBar({
   onClear,
   onSaveDraft,
   onPublish,
+  updating,
 }: FooterBarProps) {
   return (
     <footer className="sticky bottom-0 bg-white border-t border-ink-200 shadow-soft mt-4">
@@ -53,8 +55,8 @@ export default function FooterBar({
         <button onClick={onSaveDraft}
           className="px-4 py-2.5 rounded-lg border border-ink-200 hover:bg-ink-50 text-ink-700 text-sm font-medium">💾 Зберегти .md</button>
         <button onClick={onPublish} disabled={loading}
-          className="px-5 py-2.5 rounded-lg bg-accent-500 hover:bg-accent-600 disabled:bg-ink-300 text-white text-sm font-semibold flex items-center gap-2 shadow-card">
-          📤 Опублікувати чернеткою в Outline
+          className={"px-5 py-2.5 rounded-lg disabled:bg-ink-300 text-white text-sm font-semibold flex items-center gap-2 shadow-card " + (updating ? "bg-amber-600 hover:bg-amber-700" : "bg-accent-500 hover:bg-accent-600")}>
+          {updating ? "🔄 Оновити існуючу статтю" : "📤 Опублікувати чернеткою в Outline"}
         </button>
       </div>
     </footer>

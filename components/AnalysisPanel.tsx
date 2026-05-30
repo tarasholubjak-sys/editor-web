@@ -6,9 +6,10 @@ interface AnalysisPanelProps {
   analyzing: boolean;
   analysis: AnalysisResult | null;
   onActionClick: (label: string, rationale?: string) => void;
+  onFixLanguage: () => void;
 }
 
-export default function AnalysisPanel({ analyzing, analysis, onActionClick }: AnalysisPanelProps) {
+export default function AnalysisPanel({ analyzing, analysis, onActionClick, onFixLanguage }: AnalysisPanelProps) {
   if (!analyzing && !analysis) return null;
 
   return (
@@ -137,7 +138,7 @@ export default function AnalysisPanel({ analyzing, analysis, onActionClick }: An
       {/* Мовна якість */}
       {analysis?.languageQuality && (
         <div className="border-t border-purple-200 px-5 py-4 bg-white/60">
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
             <span className="text-base">🇺🇦</span>
             <span className="text-sm font-bold text-ink-900">Якість української</span>
             <div className="flex-1" />
@@ -158,6 +159,13 @@ export default function AnalysisPanel({ analyzing, analysis, onActionClick }: An
               <span className="text-sm font-bold text-ink-900 min-w-[40px] text-right">{analysis.languageQuality.score}%</span>
             </div>
             <span className="text-xs text-ink-600 italic">{analysis.languageQuality.verdict}</span>
+            {analysis.languageQuality.issues && analysis.languageQuality.issues.length > 0 && (
+              <button
+                onClick={onFixLanguage}
+                className="px-3 py-1.5 rounded-md bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold">
+                ✏️ Виправити все ({analysis.languageQuality.issues.length})
+              </button>
+            )}
           </div>
           {analysis.languageQuality.issues && analysis.languageQuality.issues.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">

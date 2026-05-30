@@ -1,0 +1,5 @@
+# Shell-скрипти та systemd unit-файли ЗАВЖДИ з LF — інакше CRLF з Windows
+# ламає їх на Linux-сервері (bash: bad interpreter: ^M).
+*.sh            text eol=lf
+deploy/*.service text eol=lf
+deploy/*.timer   text eol=lf

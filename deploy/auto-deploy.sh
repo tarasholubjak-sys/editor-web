@@ -72,6 +72,9 @@ deploy() {
       return
     fi
     rm -rf .next && mv .next-build .next
+    # next build авто-редагує tsconfig.json/next-env.d.ts (include типів distDir) →
+    # відкочуємо, щоб дрейф не ламав майбутній git pull --ff-only
+    git checkout -- tsconfig.json next-env.d.ts 2>/dev/null || true
     log "$name: build OK → .next оновлено (atomic swap)"
   fi
 

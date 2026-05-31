@@ -12,14 +12,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { llmGenerate } from "@/lib/llm";
 import { loadSkill } from "@/lib/skill";
 import { outlineGetDocument } from "@/lib/outline";
-import { checkRate, rateKey } from "@/lib/rate-limit";
+import { checkRate, rateKey, checkGlobalRate } from "@/lib/rate-limit";
+import { signUpdateToken } from "@/lib/merge-token";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
 
 export async function POST(req: NextRequest) {
   const key = rateKey(req);
-  if (!checkRate(key, 20, 60_000)) {
+  // per-key + глобальний backstop (проти XFF-спуфінгу — дорогий Sonnet)
+  if (!checkRate(key, 20, 60_000) || !checkGlobalRate("merge", 40, 60_000)) {
     return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
   }
 
@@ -77,6 +79,8 @@ ${docB}
         markdown: existingMd,
         url: existing.url,
       },
+      // токен дозволяє оновити САМЕ цей доку (30 хв) — захист від довільного overwrite
+      updateToken: signUpdateToken(existing.id),
       provider,
     });
   } catch (err: any) {

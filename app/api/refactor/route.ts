@@ -12,7 +12,7 @@ import { llmGenerate } from "@/lib/llm";
 import { loadSkill, loadTemplate } from "@/lib/skill";
 import { outlineSearch, outlineListCollections, buildPublicUrl } from "@/lib/outline";
 import { gdriveSearch, isGDriveAvailable } from "@/lib/gdrive";
-import { checkRate, rateKey } from "@/lib/rate-limit";
+import { checkRate, rateKey, checkGlobalRate } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -98,7 +98,7 @@ function titleScore(title: string, keywords: string[]): number {
 
 export async function POST(req: NextRequest) {
   const key = rateKey(req);
-  if (!checkRate(key, 30, 60_000)) {
+  if (!checkRate(key, 30, 60_000) || !checkGlobalRate("refactor", 60, 60_000)) {
     return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
   }
 

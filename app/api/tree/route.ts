@@ -15,7 +15,7 @@ import { isGDriveAvailable, getGDriveEmail } from "@/lib/gdrive";
 import { google } from "googleapis";
 import fs from "fs";
 import { createHash } from "crypto";
-import { checkRate, rateKey } from "@/lib/rate-limit";
+import { checkRate, rateKey, checkGlobalRate } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,7 +178,7 @@ const TREE_PROMPT = `Ти — архітектор бази знань Selfy (B2
 
 export async function GET(req: Request) {
   const key = rateKey(req);
-  if (!checkRate(key, 6, 60_000)) {
+  if (!checkRate(key, 6, 60_000) || !checkGlobalRate("tree", 12, 60_000)) {
     return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
   }
 
@@ -249,7 +249,7 @@ export async function GET(req: Request) {
       const hash = createHash("sha256").update(String(text)).digest("hex").slice(0, 12);
       console.error(`[tree] Невалідний JSON: len=${len} hash=${hash} preview=${String(text).slice(0, 200)}`);
       return NextResponse.json(
-        { error: "LLM не повернула валідний JSON", rawSample: String(text).slice(0, 300) },
+        { error: "LLM не повернула валідний JSON" },
         { status: 500 },
       );
     }

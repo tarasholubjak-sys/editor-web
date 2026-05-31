@@ -16,7 +16,8 @@ import {
   outlineSearch,
   buildPublicUrl,
 } from "@/lib/outline";
-import { checkRate, rateKey } from "@/lib/rate-limit";
+import { checkRate, rateKey, checkGlobalRate } from "@/lib/rate-limit";
+import { verifyUpdateToken } from "@/lib/merge-token";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -56,12 +57,12 @@ async function pickCollection(type: string, override?: string): Promise<string> 
 
 export async function POST(req: NextRequest) {
   const key = rateKey(req);
-  if (!checkRate(key, 10, 60_000)) {
+  if (!checkRate(key, 10, 60_000) || !checkGlobalRate("publish", 25, 60_000)) {
     return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
   }
 
   try {
-    const { markdown, type, collectionId, documentId } = await req.json();
+    const { markdown, type, collectionId, documentId, updateToken } = await req.json();
     if (!markdown || typeof markdown !== "string" || markdown.length < 50) {
       return NextResponse.json({ error: "Markdown занадто короткий" }, { status: 400 });
     }
@@ -72,6 +73,14 @@ export async function POST(req: NextRequest) {
 
     // === Режим ОНОВЛЕННЯ існуючого документа (merge-флоу) ===
     if (documentId && typeof documentId === "string") {
+      // ЗАХИСТ: оновити доку можна лише з валідним токеном, який сервер видав
+      // у /api/merge САМЕ для цього documentId (інакше — довільний overwrite).
+      if (!verifyUpdateToken(updateToken, documentId)) {
+        return NextResponse.json(
+          { error: "Недійсний/прострочений токен оновлення. Повтори «Об'єднати» і одразу «Оновити»." },
+          { status: 403 },
+        );
+      }
       const { url } = await outlineUpdateDocument({ id: documentId, title, text: body });
       return NextResponse.json({ url, title, updated: true });
     }
@@ -101,6 +110,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url, title });
   } catch (err: any) {
     console.error("[publish] error:", err);
-    return NextResponse.json({ error: err.message || "Помилка публікації" }, { status: 500 });
+    return NextResponse.json({ error: "Помилка публікації. Спробуй ще раз." }, { status: 500 });
   }
 }

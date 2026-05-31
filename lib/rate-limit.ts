@@ -35,6 +35,18 @@ export function checkRate(key: string, max: number, windowMs: number): boolean {
   return true;
 }
 
+// Глобальний ліміт per-endpoint (backstop проти X-Forwarded-For спуфінгу:
+// навіть з підробленим IP сумарний обсяг дорогих LLM-викликів обмежений).
+const globalBuckets = new Map<string, number[]>();
+export function checkGlobalRate(name: string, max: number, windowMs: number): boolean {
+  const now = Date.now();
+  const arr = (globalBuckets.get(name) || []).filter((t) => now - t < windowMs);
+  if (arr.length >= max) return false;
+  arr.push(now);
+  globalBuckets.set(name, arr);
+  return true;
+}
+
 /** Формує ключ для rate-limit (email або IP). */
 export function rateKey(req: Request, email?: string | null): string {
   if (email) return `e:${email.toLowerCase()}`;

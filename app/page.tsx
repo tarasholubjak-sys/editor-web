@@ -32,7 +32,7 @@ export default function HomePage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>("");
   const [toast, setToast] = useState<string | null>(null);
-  const [updateTarget, setUpdateTarget] = useState<{ id: string; title: string } | null>(null);
+  const [updateTarget, setUpdateTarget] = useState<{ id: string; title: string; token: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -150,6 +150,7 @@ export default function HomePage() {
           type: selectedTemplate,
           collectionId: selectedCollectionId || undefined,
           documentId: updateTarget?.id,
+          updateToken: updateTarget?.token,
         }),
       });
       const data = await res.json();
@@ -201,7 +202,7 @@ export default function HomePage() {
       if (!res.ok) throw new Error(data.error || "Помилка об'єднання");
       setResult((prev) => (prev ? { ...prev, markdown: data.merged } : prev));
       setTitle(extractTitle(data.merged));
-      setUpdateTarget({ id: cand.id, title: cand.title });
+      setUpdateTarget({ id: cand.id, title: cand.title, token: data.updateToken });
       showToast(`Об'єднано з "${cand.title}". Перевір і натисни «Оновити».`);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: any) {
@@ -218,7 +219,8 @@ export default function HomePage() {
     let md = result.markdown;
     let n = 0;
     for (const iss of issues) {
-      if (iss.found && iss.suggestion && md.includes(iss.found)) {
+      // пропускаємо надто короткі (≤2 симв.) — щоб не зачепити підрядки всередині інших слів
+      if (iss.found && iss.suggestion && iss.found.length >= 3 && md.includes(iss.found)) {
         md = md.split(iss.found).join(iss.suggestion);
         n++;
       }

@@ -276,6 +276,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ tree, cached: false });
   } catch (err: any) {
     console.error("[tree] error:", err);
-    return NextResponse.json({ error: err.message || "Помилка" }, { status: 500 });
+    return NextResponse.json({ error: "Помилка аналізу бази" }, { status: 500 });
   }
 }

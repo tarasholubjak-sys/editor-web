@@ -16,7 +16,7 @@ import { llmGenerate } from "@/lib/llm";
 import { loadSkill } from "@/lib/skill";
 import { outlineSearch, buildPublicUrl } from "@/lib/outline";
 import { gdriveSearch, isGDriveAvailable } from "@/lib/gdrive";
-import { checkRate, rateKey } from "@/lib/rate-limit";
+import { checkRate, rateKey, checkGlobalRate } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -131,7 +131,7 @@ function safeJson(text: string): any {
 
 export async function POST(req: NextRequest) {
   const key = rateKey(req);
-  if (!checkRate(key, 30, 60_000)) {
+  if (!checkRate(key, 30, 60_000) || !checkGlobalRate("analyze", 60, 60_000)) {
     return NextResponse.json({ error: "Забагато запитів. Спробуй через хвилину." }, { status: 429 });
   }
 

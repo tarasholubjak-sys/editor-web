@@ -250,7 +250,7 @@ export default function HomePage() {
     <div className="min-h-screen flex flex-col">
       <Topbar />
 
-      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-5">
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-5">
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg px-4 py-2.5 mb-4 text-sm flex items-center gap-2">
             <span>⚠️</span><span>{error}</span>

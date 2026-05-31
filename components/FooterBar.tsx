@@ -30,7 +30,7 @@ export default function FooterBar({
 }: FooterBarProps) {
   return (
     <footer className="sticky bottom-0 bg-white border-t border-ink-200 shadow-soft mt-4">
-      <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-4 flex-wrap">
+      <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3 flex items-center gap-4 flex-wrap">
         <div className="flex flex-col">
           <span className="text-[10px] text-ink-500 uppercase tracking-wider mb-0.5">Колекція</span>
           <select value={selectedCollectionId} onChange={(e) => setSelectedCollectionId(e.target.value)}

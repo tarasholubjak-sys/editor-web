@@ -101,7 +101,7 @@ export default function TreePage() {
   return (
     <div className="min-h-screen flex flex-col">
       <header className="bg-white border-b border-ink-200 sticky top-0 z-30">
-        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center gap-6">
+        <div className="w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-3 flex items-center gap-6">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-gradient-to-br from-accent-500 to-accent-700 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-card">S</div>
             <div className="leading-tight">
@@ -122,7 +122,7 @@ export default function TreePage() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1400px] mx-auto w-full px-6 py-5">
+      <main className="flex-1 w-full px-4 sm:px-6 lg:px-8 xl:px-12 py-5">
         <div className="mb-5 flex items-center gap-4 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold text-ink-900">🌳 Архітектура бази знань</h1>
